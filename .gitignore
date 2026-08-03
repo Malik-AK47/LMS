@@ -4,6 +4,14 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Environment Secrets & Logs ###
+.env
+.env.local
+*.properties.local
+*.yml.local
+logs/
+*.log
+
 ### STS ###
 .apt_generated
 .classpath
