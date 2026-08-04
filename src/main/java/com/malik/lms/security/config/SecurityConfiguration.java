@@ -30,7 +30,6 @@ public class SecurityConfiguration {
         this.jwtFilter = jwtFilter;
     }
 
-
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) {
         return httpSecurity
