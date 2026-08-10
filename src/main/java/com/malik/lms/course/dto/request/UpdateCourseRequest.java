@@ -13,7 +13,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CreateCourseRequest {
+public class UpdateCourseRequest {
 
     @NotBlank(message = "title cant be empty...")
     private String title;

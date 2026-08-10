@@ -12,14 +12,14 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CourseDetailsResponse {
+public class AdminCourseReviewResponse {
 
     private Long id;
     private String title;
-    private String description;
     private BigDecimal price;
     private DifficultyLevel difficultyLevel;
     private String categoryName;
     private String instructorName;
-    private String thumbnail;
+    private CourseStatus status;
+    private LocalDateTime createdAt;
 }

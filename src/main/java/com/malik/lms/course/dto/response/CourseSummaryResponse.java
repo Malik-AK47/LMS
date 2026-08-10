@@ -18,4 +18,5 @@ public class CourseSummaryResponse {
     private BigDecimal price;
     private DifficultyLevel difficultyLevel;
     private String categoryName;
+    private String thumbnail;
 }

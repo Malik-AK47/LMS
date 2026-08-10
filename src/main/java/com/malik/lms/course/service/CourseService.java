@@ -3,16 +3,19 @@ package com.malik.lms.course.service;
 import com.malik.lms.category.entity.Category;
 import com.malik.lms.category.repository.CategoryRepository;
 import com.malik.lms.course.dto.request.CreateCourseRequest;
-import com.malik.lms.course.dto.response.CourseSummaryResponse;
-import com.malik.lms.course.dto.response.CreateCourseResponse;
+import com.malik.lms.course.dto.request.RejectCourseRequest;
+import com.malik.lms.course.dto.request.UpdateCourseRequest;
+import com.malik.lms.course.dto.response.*;
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
+import com.malik.lms.section.entity.Section;
 import com.malik.lms.security.user.CustomUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -27,7 +30,6 @@ public class CourseService {
     }
 
     public CreateCourseResponse createCourse(CreateCourseRequest createCourseRequest, Authentication authentication) {
-        // Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Category category = categoryRepository.findById(createCourseRequest.getCategoryId()).orElseThrow(()-> new RuntimeException("not found..."));
@@ -41,18 +43,135 @@ public class CourseService {
         course.setCreatedAt(LocalDateTime.now());
         course.setUpdatedAt(LocalDateTime.now());
         course.setStatus(CourseStatus.DRAFT);
+        course.setThumbnail(createCourseRequest.getThumbnail());
         course.setInstructor(instructor.getUser());
 
         Course savedCourse = courseRepository.save(course);
-
         return new CreateCourseResponse(savedCourse.getId(), savedCourse.getTitle(), savedCourse.getStatus());
-
     }
 
     public Page<CourseSummaryResponse> getPublishedCourses(Pageable pageable) {
-
         Page<Course> courses = courseRepository.findByStatus(CourseStatus.PUBLISHED, pageable);
+        return courses.map(course -> new CourseSummaryResponse(course.getId(), course.getTitle(), course.getPrice(), course.getDifficultyLevel(), course.getThumbnail(), course.getCategory().getName()));
+    }
 
-        return courses.map(course -> new CourseSummaryResponse(course.getId(), course.getTitle(), course.getPrice(), course.getDifficultyLevel(), course.getCategory().getName()));
+    public CourseDetailsResponse getCourseDetails(Long id) {
+        Course course = courseRepository.findByIdAndStatus(id, CourseStatus.PUBLISHED).orElseThrow(()-> new RuntimeException("not found..."));
+        return new CourseDetailsResponse(course.getId(), course.getTitle(), course.getDescription(), course.getPrice(), course.getDifficultyLevel(), course.getCategory().getName(), course.getInstructor().getFullName(), course.getThumbnail());
+    }
+
+    public Page<InstructorCourseSummaryResponse> getAllInstructorCourses(Pageable pageable, Authentication authentication) {
+        CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
+        Long instructId = instructor.getUser().getId();
+
+        Page<Course> course = courseRepository.findByInstructorId(instructId, pageable);
+        return course.map(instCourses ->
+                new InstructorCourseSummaryResponse(instCourses.getId(), instCourses.getTitle(), instCourses.getPrice(), instCourses.getDifficultyLevel(), instCourses.getCategory().getName(), instCourses.getStatus(), instCourses.getCreatedAt(), instCourses.getThumbnail()));
+    }
+
+    @Transactional
+    public UpdateCourseResponse updateCourse(UpdateCourseRequest updateCourseRequest, Long id, Authentication authentication) {
+        CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
+        Long instructorId = instructor.getUser().getId();
+
+        Course course = courseRepository.findByIdAndInstructorId(id, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
+            throw new RuntimeException("Only draft or rejected courses can be edited");
+        }
+
+        Category category = categoryRepository.findById(updateCourseRequest.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
+
+        course.setTitle(updateCourseRequest.getTitle());
+        course.setDescription(updateCourseRequest.getDescription());
+        course.setPrice(updateCourseRequest.getPrice());
+        course.setDifficultyLevel(updateCourseRequest.getDifficultyLevel());
+        course.setCategory(category);
+        course.setThumbnail(updateCourseRequest.getThumbnail());
+        course.setUpdatedAt(LocalDateTime.now());
+
+        course.setRejectionReason(null);
+
+        Course updatedCourse = courseRepository.save(course);
+
+        return new UpdateCourseResponse(updatedCourse.getId(), updatedCourse.getTitle(), "Course updated successfully");
+    }
+
+    @Transactional
+    public CourseStatusResponse submitForReview(Long courseId, Authentication authentication) {
+
+        CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
+
+        Long instructorId = instructor.getUser().getId();
+
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
+            throw new RuntimeException("Only draft or rejected courses can be submitted");
+        }
+        if (course.getSections() == null || course.getSections().isEmpty()) {
+            throw new RuntimeException("Course must contain at least one section");
+        }
+
+        boolean hasLessons = false;
+        for (Section section : course.getSections()) {
+            if (section.getLessons() != null && !section.getLessons().isEmpty()) {
+                hasLessons = true;
+                break;
+            }
+        }
+
+        if (!hasLessons) {
+            throw new RuntimeException("Course must contain at least one lesson");
+        }
+
+        course.setStatus(CourseStatus.PENDING_REVIEW);
+        course.setUpdatedAt(LocalDateTime.now());
+
+        Course savedCourse = courseRepository.save(course);
+
+        return new CourseStatusResponse(savedCourse.getId(), savedCourse.getStatus(), "Course submitted for review");
+    }
+
+
+    public Page<AdminCourseReviewResponse> getPendingCourses(Pageable pageable) {
+        Page<Course> courses = courseRepository.findByStatus(CourseStatus.PENDING_REVIEW, pageable);
+
+        return courses.map(course -> new AdminCourseReviewResponse(course.getId(), course.getTitle(), course.getPrice(), course.getDifficultyLevel(), course.getCategory().getName(), course.getInstructor().getFullName(), course.getStatus(), course.getCreatedAt()));
+    }
+
+    @Transactional
+    public CourseStatusResponse publishCourse(Long courseId) {
+
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (course.getStatus() != CourseStatus.PENDING_REVIEW) {
+            throw new RuntimeException("Only courses pending review can be published");
+        }
+
+        course.setStatus(CourseStatus.PUBLISHED);
+        course.setUpdatedAt(LocalDateTime.now());
+
+        Course savedCourse = courseRepository.save(course);
+
+        return new CourseStatusResponse(savedCourse.getId(), savedCourse.getStatus(), "Course published successfully");
+    }
+
+
+    @Transactional
+    public CourseStatusResponse rejectCourse(Long courseId, RejectCourseRequest request) {
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (course.getStatus() != CourseStatus.PENDING_REVIEW) {
+            throw new RuntimeException("Only courses pending review can be rejected");
+        }
+
+        course.setStatus(CourseStatus.REJECTED);
+        course.setRejectionReason(request.getReason());
+        course.setUpdatedAt(LocalDateTime.now());
+
+        Course savedCourse = courseRepository.save(course);
+
+        return new CourseStatusResponse(savedCourse.getId(), savedCourse.getStatus(), savedCourse.getRejectionReason());
     }
 }
