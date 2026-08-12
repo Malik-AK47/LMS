@@ -3,6 +3,7 @@ package com.malik.lms.section.service;
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
+import com.malik.lms.enrollment.repository.EnrollmentRepository;
 import com.malik.lms.section.dto.request.CreateSectionRequest;
 import com.malik.lms.section.dto.request.UpdateSectionRequest;
 import com.malik.lms.section.dto.response.CreateSectionResponse;
@@ -24,10 +25,12 @@ public class SectionService {
 
     private final SectionRepository sectionRepository;
     private final CourseRepository courseRepository;
+    private final EnrollmentRepository enrollmentRepository;
 
-    public SectionService(SectionRepository sectionRepository, CourseRepository courseRepository) {
+    public SectionService(SectionRepository sectionRepository, CourseRepository courseRepository, EnrollmentRepository enrollmentRepository) {
         this.sectionRepository = sectionRepository;
         this.courseRepository = courseRepository;
+        this.enrollmentRepository = enrollmentRepository;
     }
 
     @Transactional
@@ -111,4 +114,25 @@ public class SectionService {
         return new UpdateSectionResponse(updatedSection.getTitle(), updatedSection.getDescription(), updatedSection.getDisplayOrder());
     }
 
+    public List<SectionSummaryResponse> getStudentSections(Long courseId, Authentication authentication) {
+        CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
+        Long studentId = student.getUser().getId();
+
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (course.getStatus() != CourseStatus.PUBLISHED) {
+            throw new RuntimeException("Course is not available");
+        }
+
+        if (!enrollmentRepository.existsByUserIdAndCourseId(studentId, courseId)) {
+            throw new RuntimeException("You are not enrolled in this course");
+        }
+
+        return course.getSections()
+                .stream()
+                .sorted(Comparator.comparing(Section::getDisplayOrder))
+                .map(section ->
+                        new SectionSummaryResponse(section.getId(), section.getTitle(), section.getDescription(), section.getDisplayOrder()))
+                .toList();
+    }
 }

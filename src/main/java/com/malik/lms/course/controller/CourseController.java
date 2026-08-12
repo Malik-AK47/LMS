@@ -4,12 +4,11 @@ import com.malik.lms.course.dto.request.RejectCourseRequest;
 import com.malik.lms.course.dto.request.UpdateCourseRequest;
 import com.malik.lms.course.dto.response.*;
 import com.malik.lms.course.dto.request.CreateCourseRequest;
+import com.malik.lms.course.service.CourseCompletionService;
 import com.malik.lms.course.service.CourseService;
 import com.malik.lms.lesson.dto.request.CreateLessonRequest;
 import com.malik.lms.lesson.dto.request.UpdateLessonRequest;
-import com.malik.lms.lesson.dto.response.CreateLessonResponse;
-import com.malik.lms.lesson.dto.response.LessonSummaryResponse;
-import com.malik.lms.lesson.dto.response.UpdateLessonResponse;
+import com.malik.lms.lesson.dto.response.*;
 import com.malik.lms.lesson.service.LessonService;
 import com.malik.lms.section.dto.request.CreateSectionRequest;
 import com.malik.lms.section.dto.request.UpdateSectionRequest;
@@ -35,11 +34,13 @@ public class CourseController {
     private final CourseService courseService;
     private final SectionService sectionService;
     private final LessonService lessonService;
+    private final CourseCompletionService courseCompletionService;
 
-    public CourseController(CourseService courseService, SectionService sectionService, LessonService lessonService) {
+    public CourseController(CourseService courseService, SectionService sectionService, LessonService lessonService, CourseCompletionService courseCompletionService) {
         this.courseService = courseService;
         this.sectionService = sectionService;
         this.lessonService = lessonService;
+        this.courseCompletionService = courseCompletionService;
     }
 
     @GetMapping("/courses")
@@ -137,5 +138,37 @@ public class CourseController {
     @PutMapping("/admin/courses/{courseId}/reject")
     public CourseStatusResponse rejectCourse(@PathVariable Long courseId, @Valid @RequestBody RejectCourseRequest request) {
         return courseService.rejectCourse(courseId, request);
+    }
+
+
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/student/courses/{courseId}/sections")
+    public List<SectionSummaryResponse> getStudentSections(@PathVariable Long courseId, Authentication authentication) {
+        return sectionService.getStudentSections(courseId, authentication);
+    }
+
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/student/sections/{sectionId}/lessons")
+    public List<LessonSummaryResponse> getStudentLessons(@PathVariable Long sectionId, Authentication authentication) {
+        return lessonService.getStudentLessons(sectionId, authentication);
+    }
+
+
+    @PreAuthorize("hasRole('STUDENT')")
+    @PostMapping("/student/lessons/{lessonId}/complete")
+    public LessonProgressResponse completeLesson(@PathVariable Long lessonId, Authentication authentication) {
+        return lessonService.completeLesson(lessonId, authentication);
+    }
+
+    @PreAuthorize("hasRole('STUDENT')")
+    @GetMapping("/student/courses/{courseId}/progress")
+    public CourseProgressResponse getCourseProgress(@PathVariable Long courseId, Authentication authentication) {
+        return lessonService.getCourseProgress(courseId, authentication);
+    }
+
+    @PreAuthorize("hasRole('STUDENT')")
+    @PostMapping("/student/courses/{courseId}/complete")
+    public CourseCompletionResponse completeCourse(@PathVariable Long courseId, Authentication authentication) {
+        return courseCompletionService.completeCourse(courseId, authentication);
     }
 }

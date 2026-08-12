@@ -9,6 +9,9 @@ import com.malik.lms.course.dto.response.*;
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
+import com.malik.lms.quiz.entity.Quiz;
+import com.malik.lms.quiz.repository.QuizQuestionRepository;
+import com.malik.lms.quiz.repository.QuizRepository;
 import com.malik.lms.section.entity.Section;
 import com.malik.lms.security.user.CustomUserDetails;
 import org.springframework.data.domain.Page;
@@ -23,10 +26,14 @@ import java.time.LocalDateTime;
 public class CourseService {
     private final CourseRepository courseRepository;
     private final CategoryRepository categoryRepository;
+    private final QuizRepository quizRepository;
+    private final QuizQuestionRepository quizQuestionRepository;
 
-    public CourseService(CourseRepository courseRepository, CategoryRepository categoryRepository) {
+    public CourseService(CourseRepository courseRepository, CategoryRepository categoryRepository, QuizRepository quizRepository, QuizQuestionRepository quizQuestionRepository) {
         this.courseRepository = courseRepository;
         this.categoryRepository = categoryRepository;
+        this.quizRepository = quizRepository;
+        this.quizQuestionRepository = quizQuestionRepository;
     }
 
     public CreateCourseResponse createCourse(CreateCourseRequest createCourseRequest, Authentication authentication) {
@@ -99,9 +106,7 @@ public class CourseService {
 
     @Transactional
     public CourseStatusResponse submitForReview(Long courseId, Authentication authentication) {
-
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
-
         Long instructorId = instructor.getUser().getId();
 
         Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
@@ -120,9 +125,15 @@ public class CourseService {
                 break;
             }
         }
-
         if (!hasLessons) {
             throw new RuntimeException("Course must contain at least one lesson");
+        }
+
+        Quiz quiz = quizRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Course must have a final quiz"));
+        long questionCount = quizQuestionRepository.countByQuizId(quiz.getId());
+
+        if (questionCount == 0) {
+            throw new RuntimeException("Quiz must contain at least one question");
         }
 
         course.setStatus(CourseStatus.PENDING_REVIEW);

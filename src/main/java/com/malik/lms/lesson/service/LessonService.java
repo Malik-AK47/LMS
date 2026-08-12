@@ -2,12 +2,15 @@ package com.malik.lms.lesson.service;
 
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
+import com.malik.lms.course.repository.CourseRepository;
+import com.malik.lms.enrollment.entity.Enrollment;
+import com.malik.lms.enrollment.repository.EnrollmentRepository;
 import com.malik.lms.lesson.dto.request.CreateLessonRequest;
 import com.malik.lms.lesson.dto.request.UpdateLessonRequest;
-import com.malik.lms.lesson.dto.response.CreateLessonResponse;
-import com.malik.lms.lesson.dto.response.LessonSummaryResponse;
-import com.malik.lms.lesson.dto.response.UpdateLessonResponse;
+import com.malik.lms.lesson.dto.response.*;
 import com.malik.lms.lesson.entity.Lesson;
+import com.malik.lms.lesson.entity.LessonProgress;
+import com.malik.lms.lesson.repository.LessonProgressRepository;
 import com.malik.lms.lesson.repository.LessonRepository;
 import com.malik.lms.section.entity.Section;
 import com.malik.lms.section.repository.SectionRepository;
@@ -26,10 +29,16 @@ import java.util.List;
 public class LessonService {
     private final LessonRepository lessonRepository;
     private final SectionRepository sectionRepository;
+    private final EnrollmentRepository enrollmentRepository;
+    private final LessonProgressRepository lessonProgressRepository;
+    private final CourseRepository courseRepository;
 
-    public LessonService(LessonRepository lessonRepository, SectionRepository sectionRepository) {
+    public LessonService(LessonRepository lessonRepository, SectionRepository sectionRepository, EnrollmentRepository enrollmentRepository, LessonProgressRepository lessonProgressRepository, CourseRepository courseRepository) {
         this.lessonRepository = lessonRepository;
         this.sectionRepository = sectionRepository;
+        this.enrollmentRepository = enrollmentRepository;
+        this.lessonProgressRepository = lessonProgressRepository;
+        this.courseRepository = courseRepository;
     }
 
 
@@ -139,4 +148,85 @@ public class LessonService {
     }
 
 
+    public List<LessonSummaryResponse> getStudentLessons(Long sectionId, Authentication authentication) {
+        CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
+        Long studentId = student.getUser().getId();
+
+        Section section = sectionRepository.findById(sectionId).orElseThrow(() -> new RuntimeException("Section not found"));
+        Course course = section.getCourse();
+
+        if (course.getStatus() != CourseStatus.PUBLISHED) {
+            throw new RuntimeException("Course is not available");
+        }
+
+        if (!enrollmentRepository.existsByUserIdAndCourseId(studentId, course.getId())) {
+            throw new RuntimeException("You are not enrolled in this course");
+        }
+
+        return section.getLessons()
+                .stream()
+                .sorted(Comparator.comparing(Lesson::getDisplayOrder))
+                .map(lesson ->
+                        new LessonSummaryResponse(lesson.getId(), lesson.getTitle(), lesson.getDurationInMinutes(), lesson.getDisplayOrder()))
+                .toList();
+    }
+
+
+    @Transactional
+    public LessonProgressResponse completeLesson(Long lessonId, Authentication authentication) {
+        CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
+        Long studentId = student.getUser().getId();
+
+        Lesson lesson = lessonRepository.findById(lessonId).orElseThrow(() -> new RuntimeException("Lesson not found"));
+
+        Course course = lesson.getSection().getCourse();
+
+        if (course.getStatus() != CourseStatus.PUBLISHED) {
+            throw new RuntimeException("Course is not available");
+        }
+
+        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, course.getId())
+                        .orElseThrow(() -> new RuntimeException("You are not enrolled in this course"));
+
+        if (lessonProgressRepository.existsByEnrollmentIdAndLessonId(enrollment.getId(), lessonId)) {
+            throw new RuntimeException("Lesson is already completed");
+        }
+
+        LessonProgress progress = new LessonProgress();
+
+        progress.setEnrollment(enrollment);
+        progress.setLesson(lesson);
+        progress.setCompletedAt(LocalDateTime.now());
+
+        LessonProgress saved = lessonProgressRepository.save(progress);
+
+        return new LessonProgressResponse(lesson.getId(), course.getId(), saved.getCompletedAt(), "Lesson completed successfully");
+    }
+
+
+    public CourseProgressResponse getCourseProgress(Long courseId, Authentication authentication) {
+        CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
+        Long studentId = student.getUser().getId();
+
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+
+        if (course.getStatus() != CourseStatus.PUBLISHED) {
+            throw new RuntimeException("Course is not available");
+        }
+
+        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, courseId)
+                        .orElseThrow(() -> new RuntimeException("You are not enrolled in this course"));
+
+        long totalLessons = lessonRepository.countBySectionCourseId(courseId);
+
+        long completedLessons = lessonProgressRepository.countByEnrollmentId(enrollment.getId());
+
+        double progressPercentage = 0;
+
+        if (totalLessons > 0) {
+            progressPercentage = (completedLessons * 100.0) / totalLessons;
+        }
+
+        return new CourseProgressResponse(course.getId(), course.getTitle(), totalLessons, completedLessons, progressPercentage);
+    }
 }

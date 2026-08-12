@@ -24,11 +24,7 @@ public interface LessonRepository extends JpaRepository<Lesson, Long> {
       AND l.displayOrder > :oldOrder
       AND l.displayOrder <= :newOrder
 """)
-    void shiftLessonsUp(
-            @Param("sectionId") Long sectionId,
-            @Param("oldOrder") Integer oldOrder,
-            @Param("newOrder") Integer newOrder
-    );
+    void shiftLessonsUp(@Param("sectionId") Long sectionId, @Param("oldOrder") Integer oldOrder, @Param("newOrder") Integer newOrder);
 
     @Modifying
     @Query("""
@@ -38,11 +34,7 @@ public interface LessonRepository extends JpaRepository<Lesson, Long> {
       AND l.displayOrder >= :newOrder
       AND l.displayOrder < :oldOrder
 """)
-    void shiftLessonsDown(
-            @Param("sectionId") Long sectionId,
-            @Param("newOrder") Integer newOrder,
-            @Param("oldOrder") Integer oldOrder
-    );
+    void shiftLessonsDown(@Param("sectionId") Long sectionId, @Param("newOrder") Integer newOrder, @Param("oldOrder") Integer oldOrder);
 
     @Modifying
     @Query("""
@@ -51,8 +43,7 @@ public interface LessonRepository extends JpaRepository<Lesson, Long> {
     WHERE l.section.id = :sectionId
       AND l.displayOrder > :displayOrder
 """)
-    void shiftLessonsAfterDelete(
-            @Param("sectionId") Long sectionId,
-            @Param("displayOrder") Integer displayOrder
-    );
+    void shiftLessonsAfterDelete(@Param("sectionId") Long sectionId, @Param("displayOrder") Integer displayOrder);
+
+    long countBySectionCourseId(Long courseId);
 }
