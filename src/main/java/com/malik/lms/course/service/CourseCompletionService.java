@@ -1,5 +1,9 @@
 package com.malik.lms.course.service;
 
+import com.malik.lms.certificate.entity.Certificate;
+import com.malik.lms.certificate.entity.IssuedCertificate;
+import com.malik.lms.certificate.repository.CertificateRepository;
+import com.malik.lms.certificate.repository.IssuedCertificateRepository;
 import com.malik.lms.course.dto.response.CourseCompletionResponse;
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
@@ -16,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 public class CourseCompletionService {
@@ -25,13 +30,17 @@ public class CourseCompletionService {
     private final LessonProgressRepository lessonProgressRepository;
     private final QuizRepository quizRepository;
     private final QuizAttemptRepository quizAttemptRepository;
+    private final CertificateRepository certificateRepository;
+    private final IssuedCertificateRepository issuedCertificateRepository;
 
-    public CourseCompletionService(EnrollmentRepository enrollmentRepository, LessonRepository lessonRepository, LessonProgressRepository lessonProgressRepository, QuizRepository quizRepository, QuizAttemptRepository quizAttemptRepository) {
+    public CourseCompletionService(EnrollmentRepository enrollmentRepository, LessonRepository lessonRepository, LessonProgressRepository lessonProgressRepository, QuizRepository quizRepository, QuizAttemptRepository quizAttemptRepository, CertificateRepository certificateRepository, IssuedCertificateRepository issuedCertificateRepository) {
         this.enrollmentRepository = enrollmentRepository;
         this.lessonRepository = lessonRepository;
         this.lessonProgressRepository = lessonProgressRepository;
         this.quizRepository = quizRepository;
         this.quizAttemptRepository = quizAttemptRepository;
+        this.certificateRepository = certificateRepository;
+        this.issuedCertificateRepository = issuedCertificateRepository;
     }
 
     @Transactional
@@ -68,7 +77,22 @@ public class CourseCompletionService {
 
         Enrollment saved = enrollmentRepository.save(enrollment);
 
-        return new CourseCompletionResponse(saved.getId(), course.getId(), course.getTitle(), saved.getCompletedAt(), "Course completed successfully");
+        Certificate certificate = certificateRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Certificate not configured for this course"));
+
+        if (issuedCertificateRepository.existsByEnrollmentId(enrollment.getId())) {
+            throw new RuntimeException("Certificate already issued");
+        }
+
+        IssuedCertificate issuedCertificate = new IssuedCertificate();
+
+        issuedCertificate.setEnrollment(saved);
+        issuedCertificate.setCertificate(certificate);
+        issuedCertificate.setCertificateNumber("CERT-" + UUID.randomUUID());
+        issuedCertificate.setIssuedAt(LocalDateTime.now());
+
+        issuedCertificateRepository.save(issuedCertificate);
+
+        return new CourseCompletionResponse(saved.getId(), course.getId(), course.getTitle(), saved.getCompletedAt(), "Course completed and certificate issued successfully");
     }
 }
 

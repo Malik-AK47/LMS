@@ -2,6 +2,8 @@ package com.malik.lms.course.service;
 
 import com.malik.lms.category.entity.Category;
 import com.malik.lms.category.repository.CategoryRepository;
+import com.malik.lms.certificate.entity.Certificate;
+import com.malik.lms.certificate.repository.CertificateRepository;
 import com.malik.lms.course.dto.request.CreateCourseRequest;
 import com.malik.lms.course.dto.request.RejectCourseRequest;
 import com.malik.lms.course.dto.request.UpdateCourseRequest;
@@ -28,12 +30,14 @@ public class CourseService {
     private final CategoryRepository categoryRepository;
     private final QuizRepository quizRepository;
     private final QuizQuestionRepository quizQuestionRepository;
+    private final CertificateRepository certificateRepository;
 
-    public CourseService(CourseRepository courseRepository, CategoryRepository categoryRepository, QuizRepository quizRepository, QuizQuestionRepository quizQuestionRepository) {
+    public CourseService(CourseRepository courseRepository, CategoryRepository categoryRepository, QuizRepository quizRepository, QuizQuestionRepository quizQuestionRepository, CertificateRepository certificateRepository) {
         this.courseRepository = courseRepository;
         this.categoryRepository = categoryRepository;
         this.quizRepository = quizRepository;
         this.quizQuestionRepository = quizQuestionRepository;
+        this.certificateRepository = certificateRepository;
     }
 
     public CreateCourseResponse createCourse(CreateCourseRequest createCourseRequest, Authentication authentication) {
@@ -135,6 +139,8 @@ public class CourseService {
         if (questionCount == 0) {
             throw new RuntimeException("Quiz must contain at least one question");
         }
+
+        Certificate certificate = certificateRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Course must have a certificate"));
 
         course.setStatus(CourseStatus.PENDING_REVIEW);
         course.setUpdatedAt(LocalDateTime.now());
