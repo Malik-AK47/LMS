@@ -2,6 +2,9 @@ package com.malik.lms.quiz.service;
 
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.quiz.dto.request.CreateQuizQuestionRequest;
 import com.malik.lms.quiz.dto.response.CreateQuizQuestionResponse;
 import com.malik.lms.quiz.dto.response.QuizQuestionResponse;
@@ -32,16 +35,16 @@ public class QuizQuestionService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Quiz quiz = quizRepository.findByIdAndCourseInstructorId(quizId, instructorId).orElseThrow(() -> new RuntimeException("Quiz not found"));
+        Quiz quiz = quizRepository.findByIdAndCourseInstructorId(quizId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
         Course course = quiz.getCourse();
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be edited");
+            throw new BadRequestException("Only draft or rejected courses can be edited");
         }
 
         if (quizQuestionRepository.existsByQuizIdAndDisplayOrder(quizId, request.getDisplayOrder())) {
-            throw new RuntimeException("Question display order already exists");
+            throw new ConflictException("Question display order already exists");
         }
 
         QuizQuestion question = new QuizQuestion();
@@ -64,7 +67,7 @@ public class QuizQuestionService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Quiz quiz = quizRepository.findByIdAndCourseInstructorId(quizId, instructorId).orElseThrow(() -> new RuntimeException("Quiz not found"));
+        Quiz quiz = quizRepository.findByIdAndCourseInstructorId(quizId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
         return quizQuestionRepository.findByQuizIdOrderByDisplayOrderAsc(quiz.getId())
                 .stream()

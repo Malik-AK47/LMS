@@ -9,6 +9,9 @@ import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.enrollment.entity.Enrollment;
 import com.malik.lms.enrollment.repository.EnrollmentRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ForbiddenException;
 import com.malik.lms.lesson.repository.LessonProgressRepository;
 import com.malik.lms.lesson.repository.LessonRepository;
 import com.malik.lms.quiz.entity.Quiz;
@@ -48,16 +51,16 @@ public class CourseCompletionService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, courseId).orElseThrow(() -> new RuntimeException("You are not enrolled in this course"));
+        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, courseId).orElseThrow(() -> new ForbiddenException("You are not enrolled in this course"));
 
         if (enrollment.getCompletedAt() != null) {
-            throw new RuntimeException("Course is already completed");
+            throw new ConflictException("Course is already completed");
         }
 
         Course course = enrollment.getCourse();
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Course is not available");
+            throw new ForbiddenException("Course is not available");
         }
 
         long totalLessons = lessonRepository.countBySectionCourseId(courseId);
@@ -65,22 +68,22 @@ public class CourseCompletionService {
         long completedLessons = lessonProgressRepository.countByEnrollmentId(enrollment.getId());
 
         if (totalLessons == 0 || completedLessons < totalLessons) {
-            throw new RuntimeException("Complete all lessons before completing the course");
+            throw new BadRequestException("Complete all lessons before completing the course");
         }
 
-        Quiz quiz = quizRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Course does not have a quiz"));
+        Quiz quiz = quizRepository.findByCourseId(courseId).orElseThrow(() -> new BadRequestException("Course does not have a quiz"));
 
         quizAttemptRepository.findFirstByEnrollmentIdAndQuizIdAndPassedTrueOrderBySubmittedAtDesc(enrollment.getId(), quiz.getId())
-                .orElseThrow(() -> new RuntimeException("You must pass the final quiz before completing the course"));
+                .orElseThrow(() -> new BadRequestException("You must pass the final quiz before completing the course"));
 
         enrollment.setCompletedAt(LocalDateTime.now());
 
         Enrollment saved = enrollmentRepository.save(enrollment);
 
-        Certificate certificate = certificateRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Certificate not configured for this course"));
+        Certificate certificate = certificateRepository.findByCourseId(courseId).orElseThrow(() -> new BadRequestException("Certificate not configured for this course"));
 
         if (issuedCertificateRepository.existsByEnrollmentId(enrollment.getId())) {
-            throw new RuntimeException("Certificate already issued");
+            throw new ConflictException("Certificate already issued");
         }
 
         IssuedCertificate issuedCertificate = new IssuedCertificate();

@@ -4,6 +4,10 @@ import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
 import com.malik.lms.enrollment.repository.EnrollmentRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ForbiddenException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.section.dto.request.CreateSectionRequest;
 import com.malik.lms.section.dto.request.UpdateSectionRequest;
 import com.malik.lms.section.dto.response.CreateSectionResponse;
@@ -39,14 +43,14 @@ public class SectionService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Course cannot be modified in its current status");
+            throw new BadRequestException("Course cannot be modified in its current status");
         }
 
         if (sectionRepository.existsByCourseIdAndDisplayOrder(courseId, createSectionRequest.getDisplayOrder())) {
-            throw new RuntimeException("Section order already exists for this course");
+            throw new ConflictException("Section order already exists for this course");
         }
 
         Section section = new Section();
@@ -67,7 +71,7 @@ public class SectionService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         List<Section> section = course.getSections();
 
@@ -82,11 +86,11 @@ public class SectionService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Section section = sectionRepository.findByIdAndCourseInstructorId(sectionId, instructorId).orElseThrow(()-> new RuntimeException("not found..."));
+        Section section = sectionRepository.findByIdAndCourseInstructorId(sectionId, instructorId).orElseThrow(()-> new ResourceNotFoundException("section not found..."));
         Course course = section.getCourse();
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be edited");
+            throw new BadRequestException("Only draft or rejected courses can be edited");
         }
 
         Integer oldOrder = section.getDisplayOrder();
@@ -118,14 +122,14 @@ public class SectionService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Course is not available");
+            throw new BadRequestException("Course is not available");
         }
 
         if (!enrollmentRepository.existsByUserIdAndCourseId(studentId, courseId)) {
-            throw new RuntimeException("You are not enrolled in this course");
+            throw new ResourceNotFoundException("You are not enrolled in this course");
         }
 
         return course.getSections()

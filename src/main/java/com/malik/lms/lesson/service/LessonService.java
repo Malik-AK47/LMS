@@ -5,6 +5,10 @@ import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
 import com.malik.lms.enrollment.entity.Enrollment;
 import com.malik.lms.enrollment.repository.EnrollmentRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ForbiddenException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.lesson.dto.request.CreateLessonRequest;
 import com.malik.lms.lesson.dto.request.UpdateLessonRequest;
 import com.malik.lms.lesson.dto.response.*;
@@ -47,15 +51,15 @@ public class LessonService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Section section = sectionRepository.findByIdAndCourseInstructorId(sectionId, instructorId).orElseThrow(()-> new RuntimeException("not found"));
+        Section section = sectionRepository.findByIdAndCourseInstructorId(sectionId, instructorId).orElseThrow(()-> new ResourceNotFoundException("section not found"));
         Course course = section.getCourse();
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be edited");
+            throw new BadRequestException("Only draft or rejected courses can be edited");
         }
 
         if (lessonRepository.existsBySectionIdAndDisplayOrder(sectionId, createLessonRequest.getDisplayOrder())) {
-            throw new RuntimeException("Lesson order already exists for this section");
+            throw new ConflictException("Lesson order already exists for this section");
         }
 
         Lesson lesson = new Lesson();
@@ -77,7 +81,7 @@ public class LessonService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Section section = sectionRepository.findByIdAndCourseInstructorId(sectionId, instructorId).orElseThrow(()-> new RuntimeException("not found"));
+        Section section = sectionRepository.findByIdAndCourseInstructorId(sectionId, instructorId).orElseThrow(()-> new ResourceNotFoundException("section not found"));
         List<Lesson> lessons = section.getLessons();
 
         return lessons.stream()
@@ -91,11 +95,11 @@ public class LessonService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Lesson lesson = lessonRepository.findByIdAndSectionCourseInstructorId(lessonId, instructorId).orElseThrow(() -> new RuntimeException("Lesson not found"));
+        Lesson lesson = lessonRepository.findByIdAndSectionCourseInstructorId(lessonId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Lesson not found"));
         Course course = lesson.getSection().getCourse();
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be edited");
+            throw new BadRequestException("Only draft or rejected courses can be edited");
         }
         Integer oldOrder = lesson.getDisplayOrder();
         Integer newOrder = request.getDisplayOrder();
@@ -130,11 +134,11 @@ public class LessonService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Lesson lesson = lessonRepository.findByIdAndSectionCourseInstructorId(lessonId, instructorId).orElseThrow(() -> new RuntimeException("Lesson not found"));
+        Lesson lesson = lessonRepository.findByIdAndSectionCourseInstructorId(lessonId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Lesson not found"));
         Course course = lesson.getSection().getCourse();
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be edited");
+            throw new BadRequestException("Only draft or rejected courses can be edited");
         }
 
         Long sectionId = lesson.getSection().getId();
@@ -152,15 +156,15 @@ public class LessonService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Section section = sectionRepository.findById(sectionId).orElseThrow(() -> new RuntimeException("Section not found"));
+        Section section = sectionRepository.findById(sectionId).orElseThrow(() -> new ResourceNotFoundException("Section not found"));
         Course course = section.getCourse();
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Course is not available");
+            throw new BadRequestException("Course is not available");
         }
 
         if (!enrollmentRepository.existsByUserIdAndCourseId(studentId, course.getId())) {
-            throw new RuntimeException("You are not enrolled in this course");
+            throw new ResourceNotFoundException("You are not enrolled in this course");
         }
 
         return section.getLessons()
@@ -177,19 +181,18 @@ public class LessonService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Lesson lesson = lessonRepository.findById(lessonId).orElseThrow(() -> new RuntimeException("Lesson not found"));
+        Lesson lesson = lessonRepository.findById(lessonId).orElseThrow(() -> new ResourceNotFoundException("Lesson not found"));
 
         Course course = lesson.getSection().getCourse();
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Course is not available");
+            throw new BadRequestException("Course is not available");
         }
 
-        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, course.getId())
-                        .orElseThrow(() -> new RuntimeException("You are not enrolled in this course"));
+        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, course.getId()).orElseThrow(() -> new ResourceNotFoundException("You are not enrolled in this course"));
 
         if (lessonProgressRepository.existsByEnrollmentIdAndLessonId(enrollment.getId(), lessonId)) {
-            throw new RuntimeException("Lesson is already completed");
+            throw new ConflictException("Lesson is already completed");
         }
 
         LessonProgress progress = new LessonProgress();
@@ -208,14 +211,14 @@ public class LessonService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Course is not available");
+            throw new BadRequestException("Course is not available");
         }
 
         Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, courseId)
-                        .orElseThrow(() -> new RuntimeException("You are not enrolled in this course"));
+                        .orElseThrow(() -> new ResourceNotFoundException("You are not enrolled in this course"));
 
         long totalLessons = lessonRepository.countBySectionCourseId(courseId);
 

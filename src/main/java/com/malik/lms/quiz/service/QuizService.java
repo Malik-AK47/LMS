@@ -4,6 +4,10 @@ import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
 import com.malik.lms.enrollment.repository.EnrollmentRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ForbiddenException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.quiz.dto.request.CreateQuizRequest;
 import com.malik.lms.quiz.dto.response.CreateQuizResponse;
 import com.malik.lms.quiz.dto.response.GetQuizResponse;
@@ -39,14 +43,13 @@ public class QuizService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(()-> new RuntimeException("course not found..."));
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(()-> new ResourceNotFoundException("course not found..."));
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("only draft or rejected courses can be edited");
+            throw new BadRequestException("only draft or rejected courses can be edited");
         }
-
         if (quizRepository.existsByCourseId(courseId)) {
-            throw new RuntimeException("quiz already exist...");
+            throw new ConflictException("quiz already exist...");
         }
 
         Quiz quiz = new Quiz();
@@ -66,9 +69,9 @@ public class QuizService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
-        Quiz quiz = quizRepository.findByCourseId(course.getId()).orElseThrow(() -> new RuntimeException("Quiz not found"));
+        Quiz quiz = quizRepository.findByCourseId(course.getId()).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
         long questionCount = quizQuestionRepository.countByQuizId(quiz.getId());
 
@@ -79,16 +82,16 @@ public class QuizService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Course is not available");
+            throw new BadRequestException("Course is not available");
         }
         if (!enrollmentRepository.existsByUserIdAndCourseId(studentId, courseId)) {
-            throw new RuntimeException("You are not enrolled in this course");
+            throw new ResourceNotFoundException("You are not enrolled in this course");
         }
 
-        Quiz quiz = quizRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Quiz not found"));
+        Quiz quiz = quizRepository.findByCourseId(courseId).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
         List<StudentQuizQuestionResponse> questions = quizQuestionRepository.findByQuizIdOrderByDisplayOrderAsc(quiz.getId())
                         .stream()

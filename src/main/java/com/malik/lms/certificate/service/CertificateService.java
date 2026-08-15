@@ -13,6 +13,10 @@ import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
 import com.malik.lms.enrollment.entity.Enrollment;
 import com.malik.lms.enrollment.repository.EnrollmentRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ForbiddenException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.security.user.CustomUserDetails;
 import jakarta.transaction.Transactional;
 import org.springframework.security.core.Authentication;
@@ -40,14 +44,14 @@ public class CertificateService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be edited");
+            throw new BadRequestException("Only draft or rejected courses can be edited");
         }
 
         if (certificateRepository.existsByCourseId(courseId)) {
-            throw new RuntimeException("Certificate already exists for this course");
+            throw new ConflictException("Certificate already exists for this course");
         }
 
         Certificate certificate = new Certificate();
@@ -67,12 +71,10 @@ public class CertificateService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, courseId).orElseThrow(() -> new RuntimeException("You are not enrolled in this course"));
-
-        IssuedCertificate issuedCertificate = issuedCertificateRepository.findByEnrollmentId(enrollment.getId()).orElseThrow(() -> new RuntimeException("Certificate has not been issued"));
+        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, courseId).orElseThrow(() -> new ResourceNotFoundException("You are not enrolled in this course"));
+        IssuedCertificate issuedCertificate = issuedCertificateRepository.findByEnrollmentId(enrollment.getId()).orElseThrow(() -> new ResourceNotFoundException("Certificate has not been issued"));
 
         Certificate certificate = issuedCertificate.getCertificate();
-
         Course course = enrollment.getCourse();
 
         return new StudentCertificateResponse(issuedCertificate.getId(), issuedCertificate.getCertificateNumber(), course.getId(), course.getTitle(), certificate.getTitle(), certificate.getDescription(), issuedCertificate.getIssuedAt());
@@ -80,7 +82,7 @@ public class CertificateService {
 
     public CertificateVerificationResponse verifyCertificate(String certificateNumber) {
         IssuedCertificate issuedCertificate = issuedCertificateRepository.findByCertificateNumber(certificateNumber)
-                        .orElseThrow(() -> new RuntimeException("Certificate not found"));
+                        .orElseThrow(() -> new ResourceNotFoundException("Certificate not found"));
 
         Certificate certificate = issuedCertificate.getCertificate();
 

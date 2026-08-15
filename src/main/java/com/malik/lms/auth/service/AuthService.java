@@ -2,6 +2,9 @@ package com.malik.lms.auth.service;
 
 import com.malik.lms.auth.dto.request.AuthRequest;
 import com.malik.lms.auth.dto.response.AuthResponse;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ForbiddenException;
 import com.malik.lms.security.config.PasswordConfig;
 import com.malik.lms.security.jwt.JwtUtility;
 import com.malik.lms.security.user.CustomUserDetails;
@@ -51,7 +54,7 @@ public class AuthService {
     @Transactional
     public AuthResponse register(AuthRequest authRequest) throws Exception {
         if (userRepository.existsByEmail(authRequest.getEmail())) {
-            throw new Exception("Already exist...");
+            throw new ConflictException("Already exist...");
         }
         User user = new User();
         user.setFullName(authRequest.getFullName());
@@ -81,11 +84,11 @@ public class AuthService {
 
         User user = userDetails.getUser();
         if (!user.isEmailVerified()) {
-            throw new RuntimeException("Please verify your email before logging in.");
+            throw new ForbiddenException("Please verify your email before logging in.");
         }
 
         if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new RuntimeException("Your account is inactive.");
+            throw new ForbiddenException("Your account is inactive.");
         }
 
         String email = userDetails.getUsername();
@@ -102,14 +105,20 @@ public class AuthService {
 
     @Transactional
     public AuthResponse verifyEmail(String token) {
+        UUID tokenUuid;
 
-        VerificationToken verificationToken =
-                verificationTokenRepository.findByToken(UUID.fromString(token))
-                        .orElseThrow(() -> new RuntimeException("Invalid verification token."));
+        try {
+            tokenUuid = UUID.fromString(token);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("Invalid verification token.");
+        }
+
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(tokenUuid)
+                        .orElseThrow(() -> new BadRequestException("Invalid verification token."));
 
         if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             verificationTokenRepository.delete(verificationToken);
-            throw new RuntimeException("Verification token has expired.");
+            throw new BadRequestException("Verification token has expired.");
         }
 
         User user = verificationToken.getUser();

@@ -14,6 +14,8 @@ import com.malik.lms.certificate.entity.Certificate;
 import com.malik.lms.certificate.entity.IssuedCertificate;
 import com.malik.lms.certificate.repository.IssuedCertificateRepository;
 import com.malik.lms.course.entity.Course;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.security.user.CustomUserDetails;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -31,7 +33,7 @@ public class CertificatePdfService {
         Long studentId = student.getUser().getId();
 
         IssuedCertificate issuedCertificate = issuedCertificateRepository.findByEnrollmentUserIdAndEnrollmentCourseId(studentId, courseId)
-                        .orElseThrow(() -> new RuntimeException("Certificate not found"));
+                        .orElseThrow(() -> new ResourceNotFoundException("Certificate not found"));
 
         Certificate certificate = issuedCertificate.getCertificate();
 
@@ -85,7 +87,7 @@ public class CertificatePdfService {
             return outputStream.toByteArray();
 
         } catch (Exception e) {
-            throw new RuntimeException("Failed to generate certificate PDF", e);
+            throw new BadRequestException("Failed to generate certificate PDF");
         }
     }
 }

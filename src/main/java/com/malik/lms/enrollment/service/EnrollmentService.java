@@ -7,6 +7,9 @@ import com.malik.lms.enrollment.dto.response.EnrollmentResponse;
 import com.malik.lms.enrollment.dto.response.GetEnrollmentResponse;
 import com.malik.lms.enrollment.entity.Enrollment;
 import com.malik.lms.enrollment.repository.EnrollmentRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ConflictException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.security.user.CustomUserDetails;
 import com.malik.lms.user.entity.User;
 import jakarta.transaction.Transactional;
@@ -35,18 +38,20 @@ public class EnrollmentService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         User user = student.getUser();
 
-        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Only published courses can be enrolled");
+            throw new BadRequestException("Only published courses can be enrolled");
         }
 
+
+        // TODO: fix when payment feature is added...
         if (course.getPrice().compareTo(BigDecimal.ZERO) > 0) {
-            throw new RuntimeException("Payment is required for this course");
+            throw new BadRequestException("Payment is required for this course");
         }
 
         if (enrollmentRepository.existsByUserIdAndCourseId(user.getId(), courseId)) {
-            throw new RuntimeException("You are already enrolled in this course");
+            throw new ConflictException("You are already enrolled in this course");
         }
 
         Enrollment enrollment = new Enrollment();

@@ -11,6 +11,8 @@ import com.malik.lms.course.dto.response.*;
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.quiz.entity.Quiz;
 import com.malik.lms.quiz.repository.QuizQuestionRepository;
 import com.malik.lms.quiz.repository.QuizRepository;
@@ -43,7 +45,7 @@ public class CourseService {
     public CreateCourseResponse createCourse(CreateCourseRequest createCourseRequest, Authentication authentication) {
 
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
-        Category category = categoryRepository.findById(createCourseRequest.getCategoryId()).orElseThrow(()-> new RuntimeException("not found..."));
+        Category category = categoryRepository.findById(createCourseRequest.getCategoryId()).orElseThrow(()-> new ResourceNotFoundException("category not found..."));
 
         Course course = new Course();
         course.setTitle(createCourseRequest.getTitle());
@@ -67,7 +69,7 @@ public class CourseService {
     }
 
     public CourseDetailsResponse getCourseDetails(Long id) {
-        Course course = courseRepository.findByIdAndStatus(id, CourseStatus.PUBLISHED).orElseThrow(()-> new RuntimeException("not found..."));
+        Course course = courseRepository.findByIdAndStatus(id, CourseStatus.PUBLISHED).orElseThrow(()-> new ResourceNotFoundException("course not found..."));
         return new CourseDetailsResponse(course.getId(), course.getTitle(), course.getDescription(), course.getPrice(), course.getDifficultyLevel(), course.getCategory().getName(), course.getInstructor().getFullName(), course.getThumbnail());
     }
 
@@ -85,13 +87,13 @@ public class CourseService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Course course = courseRepository.findByIdAndInstructorId(id, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findByIdAndInstructorId(id, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be edited");
+            throw new BadRequestException("Only draft or rejected courses can be edited");
         }
 
-        Category category = categoryRepository.findById(updateCourseRequest.getCategoryId()).orElseThrow(() -> new RuntimeException("Category not found"));
+        Category category = categoryRepository.findById(updateCourseRequest.getCategoryId()).orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
         course.setTitle(updateCourseRequest.getTitle());
         course.setDescription(updateCourseRequest.getDescription());
@@ -113,13 +115,13 @@ public class CourseService {
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
         Long instructorId = instructor.getUser().getId();
 
-        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
-            throw new RuntimeException("Only draft or rejected courses can be submitted");
+            throw new BadRequestException("Only draft or rejected courses can be submitted");
         }
         if (course.getSections() == null || course.getSections().isEmpty()) {
-            throw new RuntimeException("Course must contain at least one section");
+            throw new BadRequestException("Course must contain at least one section");
         }
 
         boolean hasLessons = false;
@@ -130,17 +132,17 @@ public class CourseService {
             }
         }
         if (!hasLessons) {
-            throw new RuntimeException("Course must contain at least one lesson");
+            throw new BadRequestException("Course must contain at least one lesson");
         }
 
-        Quiz quiz = quizRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Course must have a final quiz"));
+        Quiz quiz = quizRepository.findByCourseId(courseId).orElseThrow(() -> new ResourceNotFoundException("Course must have a final quiz"));
         long questionCount = quizQuestionRepository.countByQuizId(quiz.getId());
 
         if (questionCount == 0) {
-            throw new RuntimeException("Quiz must contain at least one question");
+            throw new BadRequestException("Quiz must contain at least one question");
         }
 
-        Certificate certificate = certificateRepository.findByCourseId(courseId).orElseThrow(() -> new RuntimeException("Course must have a certificate"));
+        Certificate certificate = certificateRepository.findByCourseId(courseId).orElseThrow(() -> new ResourceNotFoundException("Course must have a certificate"));
 
         course.setStatus(CourseStatus.PENDING_REVIEW);
         course.setUpdatedAt(LocalDateTime.now());
@@ -159,11 +161,10 @@ public class CourseService {
 
     @Transactional
     public CourseStatusResponse publishCourse(Long courseId) {
-
-        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.PENDING_REVIEW) {
-            throw new RuntimeException("Only courses pending review can be published");
+            throw new BadRequestException("Only courses pending review can be published");
         }
 
         course.setStatus(CourseStatus.PUBLISHED);
@@ -177,10 +178,10 @@ public class CourseService {
 
     @Transactional
     public CourseStatusResponse rejectCourse(Long courseId, RejectCourseRequest request) {
-        Course course = courseRepository.findById(courseId).orElseThrow(() -> new RuntimeException("Course not found"));
+        Course course = courseRepository.findById(courseId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
 
         if (course.getStatus() != CourseStatus.PENDING_REVIEW) {
-            throw new RuntimeException("Only courses pending review can be rejected");
+            throw new BadRequestException("Only courses pending review can be rejected");
         }
 
         course.setStatus(CourseStatus.REJECTED);

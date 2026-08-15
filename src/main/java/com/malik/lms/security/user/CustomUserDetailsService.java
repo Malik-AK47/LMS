@@ -1,6 +1,5 @@
 package com.malik.lms.security.user;
 
-import com.malik.lms.user.entity.User;
 import com.malik.lms.user.repository.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

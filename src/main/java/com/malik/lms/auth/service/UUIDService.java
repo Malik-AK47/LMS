@@ -1,5 +1,6 @@
 package com.malik.lms.auth.service;
 
+import com.malik.lms.exception.BadRequestException;
 import com.malik.lms.user.entity.User;
 import com.malik.lms.user.enums.UserStatus;
 import com.malik.lms.user.repository.UserRepository;
@@ -13,21 +14,23 @@ import java.util.UUID;
 
 @Service
 public class UUIDService {
-    @Autowired
-    private VerificationTokenRepository verificationTokenRepository;
+    private final VerificationTokenRepository verificationTokenRepository;
+    private final UserRepository userRepository;
 
-    @Autowired
-    private UserRepository userRepository;
+    public UUIDService(VerificationTokenRepository verificationTokenRepository, UserRepository userRepository) {
+        this.verificationTokenRepository = verificationTokenRepository;
+        this.userRepository = userRepository;
+    }
 
     public void verifyEmail(String tokenStr) throws Exception {
         UUID UUIDtoken = UUID.fromString(tokenStr);
 
         VerificationToken verificationToken = verificationTokenRepository.findByToken(UUIDtoken)
-                .orElseThrow(()-> new Exception("Invalid token..."));
+                .orElseThrow(()-> new BadRequestException("Invalid verification token..."));
 
         if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             verificationTokenRepository.delete(verificationToken);
-            throw new Exception("Token Expired...");
+            throw new BadRequestException("Token Expired...");
         }
 
         User user = verificationToken.getUser();

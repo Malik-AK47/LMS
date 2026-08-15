@@ -4,6 +4,9 @@ import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.enrollment.entity.Enrollment;
 import com.malik.lms.enrollment.repository.EnrollmentRepository;
+import com.malik.lms.exception.BadRequestException;
+import com.malik.lms.exception.ForbiddenException;
+import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.quiz.dto.request.QuizAnswerRequest;
 import com.malik.lms.quiz.dto.request.SubmitQuizRequest;
 import com.malik.lms.quiz.dto.response.QuizAttemptResponse;
@@ -45,20 +48,20 @@ public class QuizAttemptService {
         CustomUserDetails student = (CustomUserDetails) authentication.getPrincipal();
         Long studentId = student.getUser().getId();
 
-        Quiz quiz = quizRepository.findById(quizId).orElseThrow(() -> new RuntimeException("Quiz not found"));
+        Quiz quiz = quizRepository.findById(quizId).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
         Course course = quiz.getCourse();
 
         if (course.getStatus() != CourseStatus.PUBLISHED) {
-            throw new RuntimeException("Course is not available");
+            throw new BadRequestException("Course is not available");
         }
 
-        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, course.getId()).orElseThrow(() -> new RuntimeException("You are not enrolled in this course"));
+        Enrollment enrollment = enrollmentRepository.findByUserIdAndCourseId(studentId, course.getId()).orElseThrow(() -> new ResourceNotFoundException("You are not enrolled in this course"));
 
         List<QuizQuestion> questions = quizQuestionRepository.findByQuizIdOrderByDisplayOrderAsc(quizId);
 
         if (questions.isEmpty()) {
-            throw new RuntimeException("Quiz has no questions");
+            throw new BadRequestException("Quiz has no questions");
         }
         
         Map<Long, QuizQuestion> questionMap = questions.stream()
@@ -71,13 +74,13 @@ public class QuizAttemptService {
             
             for (QuizAnswerRequest answer : submitQuizRequest.getAnswers()) {
                 if (!submittedQuestionIds.add(answer.getQuestionId())) {
-                    throw new RuntimeException("Duplicate question answer");
+                    throw new BadRequestException("Duplicate question answer");
                 }
                 
                 QuizQuestion question = questionMap.get(answer.getQuestionId());
 
                 if (question == null) {
-                    throw new RuntimeException("Question does not belong to this quiz");
+                    throw new BadRequestException("Question does not belong to this quiz");
                 }
 
                 if (question.getCorrectOption() == answer.getSelectedOption()) {
