@@ -9,11 +9,10 @@ import com.malik.lms.exception.ConflictException;
 import com.malik.lms.exception.ForbiddenException;
 import com.malik.lms.exception.ResourceNotFoundException;
 import com.malik.lms.quiz.dto.request.CreateQuizRequest;
-import com.malik.lms.quiz.dto.response.CreateQuizResponse;
-import com.malik.lms.quiz.dto.response.GetQuizResponse;
-import com.malik.lms.quiz.dto.response.StudentQuizQuestionResponse;
-import com.malik.lms.quiz.dto.response.StudentQuizResponse;
+import com.malik.lms.quiz.dto.request.UpdateQuizRequest;
+import com.malik.lms.quiz.dto.response.*;
 import com.malik.lms.quiz.entity.Quiz;
+import com.malik.lms.quiz.repository.QuizAttemptRepository;
 import com.malik.lms.quiz.repository.QuizQuestionRepository;
 import com.malik.lms.quiz.repository.QuizRepository;
 import com.malik.lms.security.user.CustomUserDetails;
@@ -30,12 +29,14 @@ public class QuizService {
     private final CourseRepository courseRepository;
     private final QuizQuestionRepository quizQuestionRepository;
     private final EnrollmentRepository enrollmentRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
 
-    public QuizService(QuizRepository quizRepository, CourseRepository courseRepository, QuizQuestionRepository quizQuestionRepository, EnrollmentRepository enrollmentRepository) {
+    public QuizService(QuizRepository quizRepository, CourseRepository courseRepository, QuizQuestionRepository quizQuestionRepository, EnrollmentRepository enrollmentRepository, QuizAttemptRepository quizAttemptRepository) {
         this.quizRepository = quizRepository;
         this.courseRepository = courseRepository;
         this.quizQuestionRepository = quizQuestionRepository;
         this.enrollmentRepository = enrollmentRepository;
+        this.quizAttemptRepository = quizAttemptRepository;
     }
 
     @Transactional
@@ -70,7 +71,6 @@ public class QuizService {
         Long instructorId = instructor.getUser().getId();
 
         Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
-
         Quiz quiz = quizRepository.findByCourseId(course.getId()).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
 
         long questionCount = quizQuestionRepository.countByQuizId(quiz.getId());
@@ -100,5 +100,50 @@ public class QuizService {
                         .toList();
 
         return new StudentQuizResponse(quiz.getId(), course.getId(), quiz.getTitle(), quiz.getDescription(), quiz.getPassingScore(), questions);
+    }
+
+
+    @Transactional
+    public UpdateQuizResponse updateQuiz(Long quizId, UpdateQuizRequest request, Authentication authentication) {
+        CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
+        Long instructorId = instructor.getUser().getId();
+
+        Quiz quiz = quizRepository.findByIdAndCourseInstructorId(quizId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+        Course course = quiz.getCourse();
+
+        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
+            throw new BadRequestException("Only draft or rejected courses can be edited");
+        }
+
+        quiz.setTitle(request.getTitle());
+        quiz.setDescription(request.getDescription());
+        quiz.setPassingScore(request.getPassingScore());
+        quiz.setUpdatedAt(LocalDateTime.now());
+
+        Quiz updatedQuiz = quizRepository.save(quiz);
+
+        return new UpdateQuizResponse(updatedQuiz.getId(), updatedQuiz.getTitle(), updatedQuiz.getPassingScore(), "Quiz updated successfully");
+    }
+
+    @Transactional
+    public String deleteQuiz(Long quizId, Authentication authentication) {
+        CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
+        Long instructorId = instructor.getUser().getId();
+
+        Quiz quiz = quizRepository.findByIdAndCourseInstructorId(quizId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Quiz not found"));
+        Course course = quiz.getCourse();
+
+        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
+            throw new BadRequestException("Only draft or rejected courses can be edited");
+        }
+
+        if (quizAttemptRepository.existsByQuizId(quizId)) {
+            throw new ConflictException("Quiz cannot be deleted because students have already attempted it");
+        }
+
+        quizQuestionRepository.deleteAll(quizQuestionRepository.findByQuizIdOrderByDisplayOrderAsc(quizId));
+        quizRepository.delete(quiz);
+
+        return "Quiz deleted successfully";
     }
 }

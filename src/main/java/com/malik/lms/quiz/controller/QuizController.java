@@ -2,10 +2,8 @@ package com.malik.lms.quiz.controller;
 
 import com.malik.lms.quiz.dto.request.CreateQuizRequest;
 import com.malik.lms.quiz.dto.request.SubmitQuizRequest;
-import com.malik.lms.quiz.dto.response.CreateQuizResponse;
-import com.malik.lms.quiz.dto.response.GetQuizResponse;
-import com.malik.lms.quiz.dto.response.QuizAttemptResponse;
-import com.malik.lms.quiz.dto.response.StudentQuizResponse;
+import com.malik.lms.quiz.dto.request.UpdateQuizRequest;
+import com.malik.lms.quiz.dto.response.*;
 import com.malik.lms.quiz.service.QuizAttemptService;
 import com.malik.lms.quiz.service.QuizService;
 import jakarta.validation.Valid;
@@ -47,5 +45,18 @@ public class QuizController {
     @PostMapping("/student/quizzes/{quizId}/submit")
     public QuizAttemptResponse submitQuiz(@PathVariable Long quizId, @Valid @RequestBody SubmitQuizRequest request, Authentication authentication) {
         return quizAttemptService.submitQuiz(quizId, request, authentication);
+    }
+
+
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @PutMapping("/instructor/quizzes/{quizId}")
+    public UpdateQuizResponse updateQuiz(@PathVariable Long quizId, @Valid @RequestBody UpdateQuizRequest request, Authentication authentication) {
+        return quizService.updateQuiz(quizId, request, authentication);
+    }
+
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @DeleteMapping("/instructor/quizzes/{quizId}")
+    public String deleteQuiz(@PathVariable Long quizId, Authentication authentication) {
+        return quizService.deleteQuiz(quizId, authentication);
     }
 }

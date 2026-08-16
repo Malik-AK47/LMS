@@ -4,6 +4,7 @@ import com.malik.lms.category.entity.Category;
 import com.malik.lms.category.repository.CategoryRepository;
 import com.malik.lms.certificate.entity.Certificate;
 import com.malik.lms.certificate.repository.CertificateRepository;
+import com.malik.lms.certificate.repository.IssuedCertificateRepository;
 import com.malik.lms.course.dto.request.CreateCourseRequest;
 import com.malik.lms.course.dto.request.RejectCourseRequest;
 import com.malik.lms.course.dto.request.UpdateCourseRequest;
@@ -11,12 +12,17 @@ import com.malik.lms.course.dto.response.*;
 import com.malik.lms.course.entity.Course;
 import com.malik.lms.course.enums.CourseStatus;
 import com.malik.lms.course.repository.CourseRepository;
+import com.malik.lms.enrollment.repository.EnrollmentRepository;
 import com.malik.lms.exception.BadRequestException;
 import com.malik.lms.exception.ResourceNotFoundException;
+import com.malik.lms.lesson.repository.LessonProgressRepository;
+import com.malik.lms.lesson.repository.LessonRepository;
 import com.malik.lms.quiz.entity.Quiz;
+import com.malik.lms.quiz.repository.QuizAttemptRepository;
 import com.malik.lms.quiz.repository.QuizQuestionRepository;
 import com.malik.lms.quiz.repository.QuizRepository;
 import com.malik.lms.section.entity.Section;
+import com.malik.lms.section.repository.SectionRepository;
 import com.malik.lms.security.user.CustomUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -33,13 +39,25 @@ public class CourseService {
     private final QuizRepository quizRepository;
     private final QuizQuestionRepository quizQuestionRepository;
     private final CertificateRepository certificateRepository;
+    private final EnrollmentRepository enrollmentRepository;
+    private final LessonProgressRepository lessonProgressRepository;
+    private final QuizAttemptRepository quizAttemptRepository;
+    private final IssuedCertificateRepository issuedCertificateRepository;
+    private final LessonRepository lessonRepository;
+    private final SectionRepository sectionRepository;
 
-    public CourseService(CourseRepository courseRepository, CategoryRepository categoryRepository, QuizRepository quizRepository, QuizQuestionRepository quizQuestionRepository, CertificateRepository certificateRepository) {
+    public CourseService(CourseRepository courseRepository, CategoryRepository categoryRepository, QuizRepository quizRepository, QuizQuestionRepository quizQuestionRepository, CertificateRepository certificateRepository, EnrollmentRepository enrollmentRepository, LessonProgressRepository lessonProgressRepository, QuizAttemptRepository quizAttemptRepository, IssuedCertificateRepository issuedCertificateRepository, LessonRepository lessonRepository, SectionRepository sectionRepository) {
         this.courseRepository = courseRepository;
         this.categoryRepository = categoryRepository;
         this.quizRepository = quizRepository;
         this.quizQuestionRepository = quizQuestionRepository;
         this.certificateRepository = certificateRepository;
+        this.enrollmentRepository = enrollmentRepository;
+        this.lessonProgressRepository = lessonProgressRepository;
+        this.quizAttemptRepository = quizAttemptRepository;
+        this.issuedCertificateRepository = issuedCertificateRepository;
+        this.lessonRepository = lessonRepository;
+        this.sectionRepository = sectionRepository;
     }
 
     public CreateCourseResponse createCourse(CreateCourseRequest createCourseRequest, Authentication authentication) {
@@ -191,5 +209,31 @@ public class CourseService {
         Course savedCourse = courseRepository.save(course);
 
         return new CourseStatusResponse(savedCourse.getId(), savedCourse.getStatus(), savedCourse.getRejectionReason());
+    }
+
+
+    @Transactional
+    public String deleteCourse(Long courseId, Authentication authentication) {
+        CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
+        Long instructorId = instructor.getUser().getId();
+
+        Course course = courseRepository.findByIdAndInstructorId(courseId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Course not found"));
+
+        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
+            throw new BadRequestException("Only draft or rejected courses can be deleted");
+        }
+
+        issuedCertificateRepository.deleteByCourseId(courseId);
+        lessonProgressRepository.deleteByCourseId(courseId);
+        quizAttemptRepository.deleteByCourseId(courseId);
+        quizQuestionRepository.deleteByCourseId(courseId);
+        lessonRepository.deleteByCourseId(courseId);
+        sectionRepository.deleteByCourseId(courseId);
+        quizRepository.deleteByCourseId(courseId);
+        certificateRepository.deleteByCourseId(courseId);
+        enrollmentRepository.deleteByCourseId(courseId);
+        courseRepository.delete(course);
+
+        return "Course deleted successfully";
     }
 }

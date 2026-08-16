@@ -2,6 +2,9 @@ package com.malik.lms.quiz.repository;
 
 import com.malik.lms.quiz.entity.QuizAttempt;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -15,4 +18,13 @@ public interface QuizAttemptRepository extends JpaRepository<QuizAttempt, Long> 
     List<QuizAttempt> findByEnrollmentIdAndQuizIdOrderByAttemptNumberAsc(Long enrollmentId, Long quizId);
 
     Optional<QuizAttempt> findFirstByEnrollmentIdAndQuizIdAndPassedTrueOrderBySubmittedAtDesc(Long enrollmentId, Long quizId);
+
+    boolean existsByQuizId(Long quizId);
+
+    @Modifying
+    @Query("""
+        DELETE FROM QuizAttempt qa
+        WHERE qa.quiz.course.id = :courseId
+        """)
+    void deleteByCourseId(@Param("courseId") Long courseId);
 }

@@ -46,4 +46,13 @@ public interface LessonRepository extends JpaRepository<Lesson, Long> {
     void shiftLessonsAfterDelete(@Param("sectionId") Long sectionId, @Param("displayOrder") Integer displayOrder);
 
     long countBySectionCourseId(Long courseId);
+
+    void deleteBySectionId(Long sectionId);
+
+    @Modifying
+    @Query("""
+        DELETE FROM Lesson l
+        WHERE l.section.course.id = :courseId
+        """)
+    void deleteByCourseId(@Param("courseId") Long courseId);
 }

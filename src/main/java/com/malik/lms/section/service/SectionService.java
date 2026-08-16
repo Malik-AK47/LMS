@@ -8,6 +8,7 @@ import com.malik.lms.exception.BadRequestException;
 import com.malik.lms.exception.ConflictException;
 import com.malik.lms.exception.ForbiddenException;
 import com.malik.lms.exception.ResourceNotFoundException;
+import com.malik.lms.lesson.repository.LessonRepository;
 import com.malik.lms.section.dto.request.CreateSectionRequest;
 import com.malik.lms.section.dto.request.UpdateSectionRequest;
 import com.malik.lms.section.dto.response.CreateSectionResponse;
@@ -30,11 +31,13 @@ public class SectionService {
     private final SectionRepository sectionRepository;
     private final CourseRepository courseRepository;
     private final EnrollmentRepository enrollmentRepository;
+    private final LessonRepository lessonRepository;
 
-    public SectionService(SectionRepository sectionRepository, CourseRepository courseRepository, EnrollmentRepository enrollmentRepository) {
+    public SectionService(SectionRepository sectionRepository, CourseRepository courseRepository, EnrollmentRepository enrollmentRepository, LessonRepository lessonRepository) {
         this.sectionRepository = sectionRepository;
         this.courseRepository = courseRepository;
         this.enrollmentRepository = enrollmentRepository;
+        this.lessonRepository = lessonRepository;
     }
 
     @Transactional
@@ -138,5 +141,39 @@ public class SectionService {
                 .map(section ->
                         new SectionSummaryResponse(section.getId(), section.getTitle(), section.getDescription(), section.getDisplayOrder()))
                 .toList();
+    }
+
+    @Transactional
+    public String deleteSection(Long sectionId, Authentication authentication) {
+        CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
+        Long instructorId = instructor.getUser().getId();
+
+        Section section = sectionRepository.findByIdAndCourseInstructorId(sectionId, instructorId).orElseThrow(() -> new ResourceNotFoundException("Section not found"));
+        Course course = section.getCourse();
+
+        if (course.getStatus() != CourseStatus.DRAFT && course.getStatus() != CourseStatus.REJECTED) {
+            throw new BadRequestException("Only draft or rejected courses can be edited");
+        }
+        Long courseId = course.getId();
+        Integer deletedOrder = section.getDisplayOrder();
+
+        lessonRepository.deleteBySectionId(sectionId);
+
+        section.setDisplayOrder(-1);
+        sectionRepository.saveAndFlush(section);
+
+        List<Section> sections = sectionRepository.findByCourseIdOrderByDisplayOrderAsc(courseId);
+
+        for (Section remainingSection : sections) {
+            if (!remainingSection.getId().equals(sectionId) && remainingSection.getDisplayOrder() > deletedOrder) {
+                remainingSection.setDisplayOrder(remainingSection.getDisplayOrder() - 1);
+            }
+        }
+
+        sectionRepository.saveAll(sections);
+
+        sectionRepository.delete(section);
+
+        return "Section deleted successfully";
     }
 }

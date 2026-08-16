@@ -171,4 +171,16 @@ public class CourseController {
     public CourseCompletionResponse completeCourse(@PathVariable Long courseId, Authentication authentication) {
         return courseCompletionService.completeCourse(courseId, authentication);
     }
+
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @DeleteMapping("/instructor/sections/{sectionId}")
+    public String deleteSection(@PathVariable Long sectionId, Authentication authentication) {
+        return sectionService.deleteSection(sectionId, authentication);
+    }
+
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @DeleteMapping("/instructor/courses/{courseId}")
+    public String deleteCourse(@PathVariable Long courseId, Authentication authentication) {
+        return courseService.deleteCourse(courseId, authentication);
+    }
 }

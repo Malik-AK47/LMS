@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -43,4 +44,12 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
             @Param("newOrder") Integer newOrder
     );
 
+    List<Section> findByCourseIdOrderByDisplayOrderAsc(Long courseId);
+
+    @Modifying
+    @Query("""
+        DELETE FROM Section s
+        WHERE s.course.id = :courseId
+        """)
+    void deleteByCourseId(@Param("courseId") Long courseId);
 }
