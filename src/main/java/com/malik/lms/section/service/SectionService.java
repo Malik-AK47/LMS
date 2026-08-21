@@ -8,6 +8,7 @@ import com.malik.lms.exception.BadRequestException;
 import com.malik.lms.exception.ConflictException;
 import com.malik.lms.exception.ForbiddenException;
 import com.malik.lms.exception.ResourceNotFoundException;
+import com.malik.lms.lesson.repository.LessonProgressRepository;
 import com.malik.lms.lesson.repository.LessonRepository;
 import com.malik.lms.section.dto.request.CreateSectionRequest;
 import com.malik.lms.section.dto.request.UpdateSectionRequest;
@@ -32,12 +33,14 @@ public class SectionService {
     private final CourseRepository courseRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final LessonRepository lessonRepository;
+    private final LessonProgressRepository lessonProgressRepository;
 
-    public SectionService(SectionRepository sectionRepository, CourseRepository courseRepository, EnrollmentRepository enrollmentRepository, LessonRepository lessonRepository) {
+    public SectionService(SectionRepository sectionRepository, CourseRepository courseRepository, EnrollmentRepository enrollmentRepository, LessonRepository lessonRepository, LessonProgressRepository lessonProgressRepository) {
         this.sectionRepository = sectionRepository;
         this.courseRepository = courseRepository;
         this.enrollmentRepository = enrollmentRepository;
         this.lessonRepository = lessonRepository;
+        this.lessonProgressRepository = lessonProgressRepository;
     }
 
     @Transactional
@@ -157,6 +160,7 @@ public class SectionService {
         Long courseId = course.getId();
         Integer deletedOrder = section.getDisplayOrder();
 
+        lessonProgressRepository.deleteBySectionId(sectionId);
         lessonRepository.deleteBySectionId(sectionId);
 
         section.setDisplayOrder(-1);
@@ -171,7 +175,6 @@ public class SectionService {
         }
 
         sectionRepository.saveAll(sections);
-
         sectionRepository.delete(section);
 
         return "Section deleted successfully";

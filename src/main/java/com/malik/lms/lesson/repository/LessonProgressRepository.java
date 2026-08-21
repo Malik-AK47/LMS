@@ -20,4 +20,18 @@ public interface LessonProgressRepository extends JpaRepository<LessonProgress, 
         WHERE lp.enrollment.course.id = :courseId
         """)
     void deleteByCourseId(@Param("courseId") Long courseId);
+
+    @Modifying
+    @Query("""
+        DELETE FROM LessonProgress lp
+        WHERE lp.lesson.id = :lessonId
+        """)
+    void deleteByLessonId(@Param("lessonId") Long lessonId);
+
+    @Modifying
+    @Query("""
+        DELETE FROM LessonProgress lp
+        WHERE lp.lesson.section.id = :sectionId
+        """)
+    void deleteBySectionId(@Param("sectionId") Long sectionId);
 }

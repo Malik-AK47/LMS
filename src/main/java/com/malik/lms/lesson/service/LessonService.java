@@ -45,7 +45,6 @@ public class LessonService {
         this.courseRepository = courseRepository;
     }
 
-
     public CreateLessonResponse createLesson(Long sectionId, CreateLessonRequest createLessonRequest, Authentication authentication) {
 
         CustomUserDetails instructor = (CustomUserDetails) authentication.getPrincipal();
@@ -144,6 +143,7 @@ public class LessonService {
         Long sectionId = lesson.getSection().getId();
         Integer displayOrder = lesson.getDisplayOrder();
 
+        lessonProgressRepository.deleteByLessonId(lessonId);
         lessonRepository.delete(lesson);
 
         lessonRepository.shiftLessonsAfterDelete(sectionId, displayOrder);
